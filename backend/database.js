@@ -26,12 +26,18 @@ db.serialize(() => {
         id_entrada TEXT PRIMARY KEY,
         id_insumo TEXT NOT NULL,
         cantidad REAL NOT NULL,
+        unidad_medida TEXT,
+        proveedor TEXT,
         lote TEXT,
         fecha_caducidad TEXT,
         fecha_registro TEXT NOT NULL,
         semana_anio INTEGER NOT NULL,
         FOREIGN KEY (id_insumo) REFERENCES catalogo_insumos(id_insumo)
     )`);
+
+    // Intentar agregar las columnas nuevas por si la base de datos ya existía
+    db.run("ALTER TABLE registro_entradas ADD COLUMN unidad_medida TEXT", (err) => { /* ignorar si ya existe */ });
+    db.run("ALTER TABLE registro_entradas ADD COLUMN proveedor TEXT", (err) => { /* ignorar si ya existe */ });
 
     // Opcional: Insertar datos de prueba en catálogo si está vacío
     db.get("SELECT COUNT(*) AS count FROM catalogo_insumos", (err, row) => {

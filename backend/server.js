@@ -27,8 +27,8 @@ app.post('/api/entradas', (req, res) => {
         db.run("BEGIN TRANSACTION");
         const stmt = db.prepare(`
             INSERT INTO registro_entradas 
-            (id_entrada, id_insumo, cantidad, lote, fecha_caducidad, fecha_registro, semana_anio) 
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            (id_entrada, id_insumo, cantidad, unidad_medida, proveedor, lote, fecha_caducidad, fecha_registro, semana_anio) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         `);
 
         for (const e of entradas) {
@@ -36,6 +36,8 @@ app.post('/api/entradas', (req, res) => {
                 e.id_entrada, 
                 e.id_insumo, 
                 e.cantidad, 
+                e.unidad_medida,
+                e.proveedor,
                 e.lote, 
                 e.fecha_caducidad, 
                 e.fecha_registro, 
@@ -61,7 +63,7 @@ app.get('/api/exportar-semana/:semana', async (req, res) => {
     try {
         const rows = await new Promise((resolve, reject) => {
             const query = `
-                SELECT r.*, c.nombre, c.categoria, c.unidad_medida, c.proveedor_default 
+                SELECT r.*, c.nombre, c.categoria, c.unidad_medida AS unidad_default, c.proveedor_default 
                 FROM registro_entradas r
                 JOIN catalogo_insumos c ON r.id_insumo = c.id_insumo
                 WHERE r.semana_anio = ?
@@ -76,22 +78,18 @@ app.get('/api/exportar-semana/:semana', async (req, res) => {
         const workbook = new ExcelJS.Workbook();
         const templatePath = path.resolve(__dirname, '../CARTA PORTE 2026.xlsx');
         
-        // Cargar la plantilla existente
         await workbook.xlsx.readFile(templatePath);
-        const worksheet = workbook.worksheets[0]; // Tomar la primera hoja
+        const worksheet = workbook.worksheets[0];
 
-        // Agregar las filas con los datos de la base de datos.
-        // NOTA: Esto asume que agregaremos los datos al final de la hoja.
-        // Ajustaremos el mapeo de columnas específico después de revisar la plantilla.
+        // Orden de columnas solicitado: cantidad, unidad de medida, materia prima o producto, lote, cad, proveedor
         for (const row of rows) {
             worksheet.addRow([
-                row.fecha_registro,
-                row.nombre,
                 row.cantidad,
-                row.unidad_medida,
+                row.unidad_medida || row.unidad_default,
+                row.nombre,
                 row.lote || 'N/A',
                 row.fecha_caducidad || 'N/A',
-                row.proveedor_default || 'N/A'
+                row.proveedor || row.proveedor_default || 'N/A'
             ]);
         }
 

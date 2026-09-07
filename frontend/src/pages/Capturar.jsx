@@ -8,15 +8,14 @@ export default function Capturar() {
   const [insumos, setInsumos] = useState([]);
   const [insumoSeleccionado, setInsumoSeleccionado] = useState(null);
   
+  const [unidadMedida, setUnidadMedida] = useState('');
+  const [proveedor, setProveedor] = useState('');
   const [lote, setLote] = useState('');
   const [caducidad, setCaducidad] = useState('');
 
-  // Simulando carga inicial del backend
   useEffect(() => {
-    // Al cargar, intentar sincronizar pendientes
     sincronizarEntradas();
 
-    // Cargar catálogo de insumos (Mock local si falla el backend)
     fetch('http://localhost:3001/api/insumos')
       .then(res => res.json())
       .then(data => setInsumos(data.data || []))
@@ -32,14 +31,18 @@ export default function Capturar() {
   const handleSelectInsumo = (insumo) => {
     setInsumoSeleccionado(insumo);
     
-    // Aplicar regla de negocio
+    // Autocompletar Detalles de Operación
+    setUnidadMedida(insumo.unidad_medida || '');
+    setProveedor(insumo.proveedor_default || '');
+
+    // Aplicar regla de negocio de Trazabilidad
     const datos = generarDatosLote(insumo.categoria);
     setLote(datos.lote);
     setCaducidad(datos.caducidad);
   };
 
   const guardarEntrada = async () => {
-    if (!insumoSeleccionado || cantidad <= 0 || !lote || !caducidad) {
+    if (!insumoSeleccionado || cantidad <= 0 || !lote || !caducidad || !unidadMedida || !proveedor) {
       alert("Por favor completa todos los campos correctamente.");
       return;
     }
@@ -48,22 +51,23 @@ export default function Capturar() {
       id_entrada: crypto.randomUUID(),
       id_insumo: insumoSeleccionado.id_insumo,
       cantidad: cantidad,
+      unidad_medida: unidadMedida,
+      proveedor: proveedor,
       lote: lote,
       fecha_caducidad: caducidad,
       fecha_registro: new Date().toISOString(),
       semana_anio: obtenerSemanaActual()
     };
 
-    // Guardar offline por defecto (garantiza rapidez)
     await guardarEntradaLocal(nuevaEntrada);
     alert("¡Entrada registrada con éxito!");
 
-    // Intentar sincronizar al servidor de inmediato
     sincronizarEntradas();
 
-    // Limpiar formulario
     setCantidad(0);
     setInsumoSeleccionado(null);
+    setUnidadMedida('');
+    setProveedor('');
     setLote('');
     setCaducidad('');
   };
@@ -143,6 +147,37 @@ export default function Capturar() {
           >
             <Plus size={24} />
           </button>
+        </div>
+      </div>
+
+      {/* Detalles de Operación (U.M. y Proveedor) */}
+      <div className="space-y-2 p-4 bg-pastel-surfaceMuted border border-pastel-border rounded-xl">
+        <label className="text-xs font-bold text-pastel-textMuted uppercase tracking-wider flex justify-between">
+          <span>Detalles de Operación</span>
+          <span className="text-[10px] text-pastel-primary">Auto-completado (editable)</span>
+        </label>
+        
+        <div className="space-y-3 mt-2">
+          <div>
+            <label className="text-[10px] text-pastel-textMuted font-semibold">Unidad de Medida</label>
+            <input 
+              type="text" 
+              value={unidadMedida}
+              onChange={(e) => setUnidadMedida(e.target.value)}
+              className="w-full bg-pastel-surface border border-pastel-border rounded-lg p-2 font-bold text-pastel-textHeading"
+              placeholder="Ej. Kg, Litros, Pzas"
+            />
+          </div>
+          <div>
+            <label className="text-[10px] text-pastel-textMuted font-semibold">Proveedor</label>
+            <input 
+              type="text" 
+              value={proveedor}
+              onChange={(e) => setProveedor(e.target.value)}
+              className="w-full bg-pastel-surface border border-pastel-border rounded-lg p-2 font-bold text-pastel-textHeading"
+              placeholder="Nombre del proveedor"
+            />
+          </div>
         </div>
       </div>
 
