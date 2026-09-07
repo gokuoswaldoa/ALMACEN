@@ -7,16 +7,20 @@ export default function Capturar() {
   const [cantidad, setCantidad] = useState(0);
   const [insumos, setInsumos] = useState([]);
   
-  // Nuevo estado para la búsqueda libre
   const [productoTexto, setProductoTexto] = useState('');
   const [insumoSeleccionado, setInsumoSeleccionado] = useState(null);
+  const [categoria, setCategoria] = useState('MATERIA_PRIMA'); // Por defecto químico
   
   const [unidadMedida, setUnidadMedida] = useState('');
   const [proveedor, setProveedor] = useState('');
   const [lote, setLote] = useState('');
   const [caducidad, setCaducidad] = useState('');
 
+  const [mostrarToast, setMostrarToast] = useState(false);
+
   useEffect(() => {
+    sincronizarEntradas();
+
     async function load() {
       try {
         const data = await import('../db/offlineStore').then(m => m.obtenerInsumos());
@@ -28,27 +32,32 @@ export default function Capturar() {
     load();
   }, []);
 
+  // Efecto para autocompletar lote/caducidad si la categoría cambia a SABOR_COLOR
+  useEffect(() => {
+    if (categoria === 'SABOR_COLOR') {
+      const datos = generarDatosLote('SABOR_COLOR');
+      if (!lote) setLote(datos.lote);
+      if (!caducidad) setCaducidad(datos.caducidad);
+    }
+  }, [categoria]);
+
   const handleProductoChange = (e) => {
     const texto = e.target.value;
     setProductoTexto(texto);
 
-    // Buscar si el texto ingresado coincide exactamente con un insumo del catálogo
     const match = insumos.find(i => i.nombre.toLowerCase() === texto.toLowerCase());
     
     if (match) {
       setInsumoSeleccionado(match);
+      setCategoria(match.categoria);
       setUnidadMedida(match.unidad_medida || '');
       setProveedor(match.proveedor_default || '');
 
       const datos = generarDatosLote(match.categoria);
-      setLote(datos.lote);
-      setCaducidad(datos.caducidad);
+      setLote(match.categoria === 'SABOR_COLOR' ? datos.lote : '');
+      setCaducidad(match.categoria === 'SABOR_COLOR' ? datos.caducidad : '');
     } else {
-      // Si no hay match (ingreso manual), limpiamos la selección pero mantenemos el texto
       setInsumoSeleccionado(null);
-      
-      // Mantenemos lo que ya hayan escrito en UM/Proveedor, no lo borramos de golpe 
-      // a menos que sea deseable, pero mejor dejamos que lo llenen manualmente.
     }
   };
 
@@ -58,11 +67,15 @@ export default function Capturar() {
       return;
     }
 
+    if (categoria === 'MATERIA_PRIMA' && (!lote || !caducidad)) {
+      alert("Para productos químicos, debes ingresar manualmente el Lote y Caducidad del proveedor.");
+      return;
+    }
+
     const nuevaEntrada = {
       id_entrada: crypto.randomUUID(),
-      // Si fue del catálogo, pasamos el ID. Si es manual, pasamos un identificador genérico
       id_insumo: insumoSeleccionado ? insumoSeleccionado.id_insumo : 'MANUAL_' + Date.now(),
-      producto: productoTexto, // Siempre pasamos el texto (sirve de respaldo y para nuevos)
+      producto: productoTexto,
       cantidad: cantidad,
       unidad_medida: unidadMedida || 'No especificada',
       proveedor: proveedor || 'No especificado',
@@ -73,9 +86,10 @@ export default function Capturar() {
     };
 
     await guardarEntradaLocal(nuevaEntrada);
-    alert("¡Entrada registrada con éxito!");
-
-    sincronizarEntradas();
+    
+    // Mostrar Toast
+    setMostrarToast(true);
+    setTimeout(() => setMostrarToast(false), 3000);
 
     setCantidad(0);
     setProductoTexto('');
@@ -84,11 +98,22 @@ export default function Capturar() {
     setProveedor('');
     setLote('');
     setCaducidad('');
+    setCategoria('MATERIA_PRIMA');
   };
 
   return (
-    <div className="p-4 space-y-6">
+    <div className="p-4 space-y-6 pb-24 relative">
       
+      {/* Toast Animado */}
+      {mostrarToast && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 animate-fade-in-down">
+          <div className="bg-green-500 text-white px-6 py-3 rounded-full shadow-lg shadow-green-500/30 flex items-center gap-2 font-bold">
+            <CheckCircle size={20} />
+            <span>¡Registro guardado con éxito!</span>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
@@ -97,23 +122,6 @@ export default function Capturar() {
         </div>
         <div className="bg-pastel-primary text-white p-2 rounded-full">
           <UserCircle size={24} />
-        </div>
-      </div>
-
-      {/* Greeting Card */}
-      <div className="bg-pastel-surface border border-pastel-border p-4 rounded-xl flex items-center justify-between shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="bg-pastel-primaryContainer text-pastel-onPrimaryContainer p-2 rounded-lg">
-            <Package size={20} />
-          </div>
-          <div>
-            <p className="text-[10px] text-pastel-textMuted uppercase font-semibold">Control de Entrada</p>
-            <h2 className="text-lg font-bold text-pastel-textHeading">¡Hola, Ing. Gabriela!</h2>
-          </div>
-        </div>
-        <div className="flex items-center gap-1 bg-pastel-primaryContainer text-pastel-onPrimaryContainer px-2 py-1 rounded-full text-xs font-semibold">
-          <div className="w-2 h-2 bg-pastel-primary rounded-full"></div>
-          Online
         </div>
       </div>
 
@@ -138,6 +146,22 @@ export default function Capturar() {
               <option key={i.id_insumo} value={i.nombre} />
             ))}
           </datalist>
+        </div>
+        
+        {/* Toggle Categoría */}
+        <div className="flex bg-pastel-surfaceMuted p-1 rounded-lg mt-2">
+          <button 
+            onClick={() => setCategoria('MATERIA_PRIMA')}
+            className={`flex-1 py-2 text-xs font-bold rounded-md transition-colors ${categoria === 'MATERIA_PRIMA' ? 'bg-white shadow-sm text-pastel-textHeading' : 'text-pastel-textMuted'}`}
+          >
+            Químico (Manual)
+          </button>
+          <button 
+            onClick={() => setCategoria('SABOR_COLOR')}
+            className={`flex-1 py-2 text-xs font-bold rounded-md transition-colors ${categoria === 'SABOR_COLOR' ? 'bg-white shadow-sm text-pastel-textHeading' : 'text-pastel-textMuted'}`}
+          >
+            Sabor/Color (Auto)
+          </button>
         </div>
       </div>
 
@@ -181,7 +205,7 @@ export default function Capturar() {
               type="text" 
               value={unidadMedida}
               onChange={(e) => setUnidadMedida(e.target.value)}
-              className="w-full bg-pastel-surface border border-pastel-border rounded-lg p-2 font-bold text-pastel-textHeading"
+              className="w-full bg-pastel-surface border border-pastel-border rounded-lg p-2 font-bold text-pastel-textHeading focus:ring-1 focus:ring-pastel-primary outline-none"
               placeholder="Ej. Kg, Litros, Pzas"
             />
           </div>
@@ -191,7 +215,7 @@ export default function Capturar() {
               type="text" 
               value={proveedor}
               onChange={(e) => setProveedor(e.target.value)}
-              className="w-full bg-pastel-surface border border-pastel-border rounded-lg p-2 font-bold text-pastel-textHeading"
+              className="w-full bg-pastel-surface border border-pastel-border rounded-lg p-2 font-bold text-pastel-textHeading focus:ring-1 focus:ring-pastel-primary outline-none"
               placeholder="Nombre del proveedor"
             />
           </div>
@@ -199,30 +223,30 @@ export default function Capturar() {
       </div>
 
       {/* Lote y Caducidad */}
-      <div className="space-y-2 p-4 bg-pastel-secondaryContainer/20 border border-pastel-secondaryContainer/40 rounded-xl">
+      <div className={`space-y-2 p-4 rounded-xl transition-colors border ${categoria === 'SABOR_COLOR' ? 'bg-pastel-secondaryContainer/20 border-pastel-secondaryContainer/40' : 'bg-pastel-surface border-pastel-border'}`}>
         <label className="text-xs font-bold text-pastel-secondary uppercase tracking-wider flex justify-between">
           <span>Trazabilidad & Lote</span>
-          <span className="text-[10px]">Manual o Autocompletado</span>
+          <span className="text-[10px] text-pastel-textMuted">{categoria === 'SABOR_COLOR' ? 'Autocompletado' : 'Obligatorio por proveedor'}</span>
         </label>
         
         <div className="flex gap-4 mt-2">
           <div className="flex-1">
-            <label className="text-[10px] text-pastel-textMuted font-semibold">Lote</label>
+            <label className="text-[10px] text-pastel-textMuted font-semibold">Lote {categoria === 'SABOR_COLOR' ? '(Editable)' : ''}</label>
             <input 
               type="text" 
               value={lote}
               onChange={(e) => setLote(e.target.value)}
-              className="w-full bg-pastel-surface border border-pastel-border rounded-lg p-2 font-bold text-pastel-textHeading"
+              className="w-full bg-white border border-pastel-border rounded-lg p-2 font-bold text-pastel-textHeading focus:ring-1 focus:ring-pastel-primary outline-none"
               placeholder="Ej. 241026"
             />
           </div>
           <div className="flex-1">
-            <label className="text-[10px] text-pastel-textMuted font-semibold">Caducidad</label>
+            <label className="text-[10px] text-pastel-textMuted font-semibold">Caducidad {categoria === 'SABOR_COLOR' ? '(Editable)' : ''}</label>
             <input 
               type="text" 
               value={caducidad}
               onChange={(e) => setCaducidad(e.target.value)}
-              className="w-full bg-pastel-surface border border-pastel-border rounded-lg p-2 font-bold text-pastel-textHeading"
+              className="w-full bg-white border border-pastel-border rounded-lg p-2 font-bold text-pastel-textHeading focus:ring-1 focus:ring-pastel-primary outline-none"
               placeholder="DD/MM/YYYY"
             />
           </div>

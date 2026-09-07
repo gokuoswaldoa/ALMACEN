@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Download, Edit2, Trash2, Box } from 'lucide-react';
+import { Calendar, Download, Edit2, Trash2, Box, X, Check } from 'lucide-react';
 import { obtenerSemanaActual } from '../utils/businessLogic';
-import { obtenerEntradasPorSemana, eliminarEntrada } from '../db/offlineStore';
+import { obtenerEntradasPorSemana, eliminarEntrada, db } from '../db/offlineStore';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 
@@ -9,6 +9,10 @@ export default function Bitacora() {
   const [semana, setSemana] = useState(obtenerSemanaActual());
   const [entradas, setEntradas] = useState([]);
   const [descargando, setDescargando] = useState(false);
+  
+  // Estado para Edición
+  const [editandoId, setEditandoId] = useState(null);
+  const [datosEdicion, setDatosEdicion] = useState({});
 
   const cargarEntradas = async () => {
     const data = await obtenerEntradasPorSemana(semana);
@@ -27,29 +31,39 @@ export default function Bitacora() {
 
     setDescargando(true);
     try {
-      // Cargamos la plantilla estática localmente desde public/
       const response = await fetch('/CARTA_PORTE_2026.xlsx');
       if (!response.ok) throw new Error("No se pudo cargar la plantilla base de Excel.");
       
       const arrayBuffer = await response.arrayBuffer();
       const workbook = new ExcelJS.Workbook();
       await workbook.xlsx.load(arrayBuffer);
-      const worksheet = workbook.worksheets[0]; // Usar la primera hoja
+      const worksheet = workbook.worksheets[0]; 
       
-      // La plantilla podría tener encabezados, si necesitas escribirlos a partir de cierta fila,
-      // ajusta el índice. ExcelJS "addRow" lo pondrá al final de los datos existentes.
-      for (const row of entradas) {
-          worksheet.addRow([
-              row.cantidad,
-              row.unidad_medida || 'N/A',
-              row.producto || 'N/A',
-              row.lote || 'N/A',
-              row.fecha_caducidad || 'N/A',
-              row.proveedor || 'N/A'
-          ]);
+      let startRow = 24;
+
+      // Limpiar datos de ejemplo (filas 24 a 50)
+      for(let i = startRow; i <= 50; i++) {
+        const r = worksheet.getRow(i);
+        r.getCell(2).value = null;
+        r.getCell(7).value = null;
+        r.getCell(17).value = null;
+        r.getCell(38).value = null;
+        r.getCell(41).value = null;
+        r.getCell(44).value = null;
       }
 
-      // Escribir y descargar
+      // Escribir los datos reales desde Bitácora
+      for (const data of entradas) {
+          const r = worksheet.getRow(startRow);
+          r.getCell(2).value = data.cantidad;
+          r.getCell(7).value = data.unidad_medida || 'N/A';
+          r.getCell(17).value = data.producto || data.nombre || 'N/A';
+          r.getCell(38).value = data.lote || 'N/A';
+          r.getCell(41).value = data.fecha_caducidad || 'N/A';
+          r.getCell(44).value = data.proveedor || 'N/A';
+          startRow++;
+      }
+
       const buffer = await workbook.xlsx.writeBuffer();
       const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
       saveAs(blob, `Carta_Porte_Semana_${semana}.xlsx`);
@@ -69,7 +83,28 @@ export default function Bitacora() {
     }
   };
 
-  const totalUnidades = entradas.reduce((acc, curr) => acc + curr.cantidad, 0);
+  const iniciarEdicion = (entrada) => {
+    setEditandoId(entrada.id_entrada);
+    setDatosEdicion({ ...entrada });
+  };
+
+  const cancelarEdicion = () => {
+    setEditandoId(null);
+    setDatosEdicion({});
+  };
+
+  const guardarEdicion = async () => {
+    try {
+      await db.entradasPendientes.put(datosEdicion);
+      setEditandoId(null);
+      setDatosEdicion({});
+      cargarEntradas();
+    } catch (err) {
+      alert("Error al actualizar el registro.");
+    }
+  };
+
+  const totalUnidades = entradas.reduce((acc, curr) => acc + Number(curr.cantidad), 0);
 
   return (
     <div className="p-4 space-y-6 pb-24">
@@ -106,7 +141,7 @@ export default function Bitacora() {
         <div className="flex justify-between items-center mb-4">
           <div>
             <h3 className="font-bold text-pastel-textHeading">Exportación Semanal</h3>
-            <p className="text-xs text-pastel-textMuted">Consolidado de recepción</p>
+            <p className="text-xs text-pastel-textMuted">Relleno a partir de fila 24</p>
           </div>
           <div className="bg-pastel-primaryContainer text-pastel-onPrimaryContainer px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider">
             .XLSX LISTO
@@ -130,47 +165,136 @@ export default function Bitacora() {
           <span className="text-pastel-textMuted font-normal">{entradas.length} Entradas • {totalUnidades} u.</span>
         </h4>
 
-        {entradas.map(entrada => (
-          <div key={entrada.id_entrada} className="bg-pastel-surface border border-pastel-border p-4 rounded-xl shadow-sm">
-            
-            <div className="flex justify-between items-start mb-2">
-              <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-pastel-secondary">
-                <Box size={12} /> {entrada.unidad_medida || 'U.M'}
-              </div>
-              <div className="bg-pastel-primaryContainer text-pastel-onPrimaryContainer px-2 py-1 rounded-full text-xs font-bold">
-                {entrada.cantidad} u.
-              </div>
-            </div>
-            
-            <h5 className="font-bold text-pastel-textHeading text-lg leading-tight mb-2">
-              {entrada.producto || entrada.nombre || 'Producto Desconocido'}
-            </h5>
-            
-            <div className="flex flex-wrap gap-2 mb-3">
-              <span className="bg-pastel-surfaceMuted text-pastel-textBody text-[10px] px-2 py-1 rounded-md font-semibold">
-                Lote: {entrada.lote || 'N/A'}
-              </span>
-              <span className="bg-pastel-peachBg text-pastel-peachText text-[10px] px-2 py-1 rounded-md font-semibold">
-                Cad: {entrada.fecha_caducidad || 'N/A'}
-              </span>
-              <span className="bg-pastel-secondaryContainer text-pastel-onSecondaryContainer text-[10px] px-2 py-1 rounded-md font-semibold">
-                Prov: {entrada.proveedor || 'N/A'}
-              </span>
-            </div>
-            
-            <div className="flex justify-between items-end pt-2 border-t border-pastel-border">
-              <p className="text-[10px] text-pastel-textMuted font-medium">
-                {new Date(entrada.fecha_registro).toLocaleString()}
-              </p>
-              <div className="flex gap-2">
-                <button onClick={() => handleEliminar(entrada.id_entrada)} className="p-2 bg-pastel-surfaceMuted rounded-lg text-pastel-textMuted hover:text-red-500">
-                  <Trash2 size={16} />
-                </button>
-              </div>
-            </div>
+        {entradas.map(entrada => {
+          const isEditing = editandoId === entrada.id_entrada;
 
-          </div>
-        ))}
+          return (
+            <div key={entrada.id_entrada} className="bg-pastel-surface border border-pastel-border p-4 rounded-xl shadow-sm">
+              {isEditing ? (
+                /* MODO EDICIÓN */
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center border-b pb-2">
+                    <span className="font-bold text-sm text-pastel-primary">Editando Registro</span>
+                    <button onClick={cancelarEdicion} className="p-1 rounded bg-red-100 text-red-500">
+                      <X size={16} />
+                    </button>
+                  </div>
+                  
+                  <div>
+                    <label className="text-[10px] font-bold text-pastel-textMuted uppercase">Producto</label>
+                    <input 
+                      type="text" 
+                      value={datosEdicion.producto || ''} 
+                      onChange={e => setDatosEdicion({...datosEdicion, producto: e.target.value})}
+                      className="w-full border rounded p-2 text-sm mt-1" 
+                    />
+                  </div>
+
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <label className="text-[10px] font-bold text-pastel-textMuted uppercase">Cantidad</label>
+                      <input 
+                        type="number" 
+                        value={datosEdicion.cantidad || 0} 
+                        onChange={e => setDatosEdicion({...datosEdicion, cantidad: Number(e.target.value)})}
+                        className="w-full border rounded p-2 text-sm mt-1" 
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <label className="text-[10px] font-bold text-pastel-textMuted uppercase">U.M.</label>
+                      <input 
+                        type="text" 
+                        value={datosEdicion.unidad_medida || ''} 
+                        onChange={e => setDatosEdicion({...datosEdicion, unidad_medida: e.target.value})}
+                        className="w-full border rounded p-2 text-sm mt-1" 
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <label className="text-[10px] font-bold text-pastel-textMuted uppercase">Lote</label>
+                      <input 
+                        type="text" 
+                        value={datosEdicion.lote || ''} 
+                        onChange={e => setDatosEdicion({...datosEdicion, lote: e.target.value})}
+                        className="w-full border rounded p-2 text-sm mt-1" 
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <label className="text-[10px] font-bold text-pastel-textMuted uppercase">Cad</label>
+                      <input 
+                        type="text" 
+                        value={datosEdicion.fecha_caducidad || ''} 
+                        onChange={e => setDatosEdicion({...datosEdicion, fecha_caducidad: e.target.value})}
+                        className="w-full border rounded p-2 text-sm mt-1" 
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-bold text-pastel-textMuted uppercase">Proveedor</label>
+                    <input 
+                      type="text" 
+                      value={datosEdicion.proveedor || ''} 
+                      onChange={e => setDatosEdicion({...datosEdicion, proveedor: e.target.value})}
+                      className="w-full border rounded p-2 text-sm mt-1" 
+                    />
+                  </div>
+
+                  <button 
+                    onClick={guardarEdicion}
+                    className="w-full mt-2 bg-green-500 text-white font-bold rounded-lg py-2 flex items-center justify-center gap-2"
+                  >
+                    <Check size={18} /> Guardar Cambios
+                  </button>
+                </div>
+              ) : (
+                /* MODO LECTURA */
+                <>
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-pastel-secondary">
+                      <Box size={12} /> {entrada.unidad_medida || 'U.M'}
+                    </div>
+                    <div className="bg-pastel-primaryContainer text-pastel-onPrimaryContainer px-2 py-1 rounded-full text-xs font-bold">
+                      {entrada.cantidad} u.
+                    </div>
+                  </div>
+                  
+                  <h5 className="font-bold text-pastel-textHeading text-lg leading-tight mb-2">
+                    {entrada.producto || entrada.nombre || 'Producto Desconocido'}
+                  </h5>
+                  
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    <span className="bg-pastel-surfaceMuted text-pastel-textBody text-[10px] px-2 py-1 rounded-md font-semibold">
+                      Lote: {entrada.lote || 'N/A'}
+                    </span>
+                    <span className="bg-pastel-peachBg text-pastel-peachText text-[10px] px-2 py-1 rounded-md font-semibold">
+                      Cad: {entrada.fecha_caducidad || 'N/A'}
+                    </span>
+                    <span className="bg-pastel-secondaryContainer text-pastel-onSecondaryContainer text-[10px] px-2 py-1 rounded-md font-semibold">
+                      Prov: {entrada.proveedor || 'N/A'}
+                    </span>
+                  </div>
+                  
+                  <div className="flex justify-between items-end pt-2 border-t border-pastel-border">
+                    <p className="text-[10px] text-pastel-textMuted font-medium">
+                      {new Date(entrada.fecha_registro).toLocaleString()}
+                    </p>
+                    <div className="flex gap-2">
+                      <button onClick={() => iniciarEdicion(entrada)} className="p-2 bg-pastel-surfaceMuted rounded-lg text-pastel-textMuted hover:text-pastel-primary">
+                        <Edit2 size={16} />
+                      </button>
+                      <button onClick={() => handleEliminar(entrada.id_entrada)} className="p-2 bg-pastel-surfaceMuted rounded-lg text-pastel-textMuted hover:text-red-500">
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          );
+        })}
 
         {entradas.length === 0 && (
           <div className="text-center py-8 text-pastel-textMuted text-sm">

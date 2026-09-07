@@ -44,6 +44,17 @@ export default {
       spacing: {
         'thumb-reach': '5.5rem',
         'thumb-btn': '52px',
+        'thumb-touch': '48px',
+        'thumb-touch-min': '44px'
+      },
+      keyframes: {
+        'fade-in-down': {
+          '0%': { opacity: '0', transform: 'translateY(-10px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        }
+      },
+      animation: {
+        'fade-in-down': 'fade-in-down 0.3s ease-out forwards',
       },
       borderRadius: {
         'xl': '16px',
