@@ -26,9 +26,9 @@ export default function Layout() {
           <NavLink 
             to="/" 
             className={({isActive}) => 
-              \`flex flex-col items-center justify-center w-full h-full space-y-1 \${
+              `flex flex-col items-center justify-center w-full h-full space-y-1 ${
                 isActive ? 'text-pastel-primary' : 'text-pastel-textMuted'
-              }\`
+              }`
             }
           >
             <DownloadCloud size={24} />
@@ -38,9 +38,9 @@ export default function Layout() {
           <NavLink 
             to="/bitacora" 
             className={({isActive}) => 
-              \`flex flex-col items-center justify-center w-full h-full space-y-1 \${
+              `flex flex-col items-center justify-center w-full h-full space-y-1 ${
                 isActive ? 'text-pastel-primary' : 'text-pastel-textMuted'
-              }\`
+              }`
             }
           >
             <Receipt size={24} />

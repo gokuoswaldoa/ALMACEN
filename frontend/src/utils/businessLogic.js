@@ -9,11 +9,11 @@ export function generarDatosLote(categoria) {
         const dia = String(hoy.getDate()).padStart(2, '0');
         const mes = String(hoy.getMonth() + 1).padStart(2, '0');
         const anio2Digitos = String(hoy.getFullYear()).slice(-2);
-        const loteCalculado = \`\${dia}\${mes}\${anio2Digitos}\`;
+        const loteCalculado = `${dia}${mes}${anio2Digitos}`;
         
         // Formato Caducidad: DD/MM/YYYY (+1 año)
         const anioCaducidad = hoy.getFullYear() + 1;
-        const caducidadCalculada = \`\${dia}/\${mes}/\${anioCaducidad}\`;
+        const caducidadCalculada = `${dia}/${mes}/${anioCaducidad}`;
 
         return { lote: loteCalculado, caducidad: caducidadCalculada, editable: true };
     }

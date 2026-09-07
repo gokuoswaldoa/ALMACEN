@@ -9,7 +9,7 @@ export default function Bitacora() {
 
   useEffect(() => {
     // Fetch desde el backend local
-    fetch(\`http://localhost:3001/api/entradas/semana/\${semana}\`)
+    fetch(`http://localhost:3001/api/entradas/semana/${semana}`)
       .then(res => res.json())
       .then(data => setEntradas(data.data || []))
       .catch(err => console.error("Error al cargar historial", err));
@@ -18,14 +18,14 @@ export default function Bitacora() {
   const descargarExcel = async () => {
     setDescargando(true);
     try {
-      const response = await fetch(\`http://localhost:3001/api/exportar-semana/\${semana}\`);
+      const response = await fetch(`http://localhost:3001/api/exportar-semana/${semana}`);
       if (!response.ok) throw new Error("Error en descarga");
       
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = \`Carta_Porte_Semana_\${semana}.xlsx\`;
+      a.download = `Carta_Porte_Semana_${semana}.xlsx`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -56,13 +56,13 @@ export default function Bitacora() {
       <div className="flex gap-2 overflow-x-auto pb-2 hide-scrollbar">
         <button 
           onClick={() => setSemana(obtenerSemanaActual())}
-          className={\`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap \${semana === obtenerSemanaActual() ? 'bg-pastel-primary text-white' : 'bg-pastel-surfaceMuted text-pastel-textMuted'}\`}
+          className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap ${semana === obtenerSemanaActual() ? 'bg-pastel-primary text-white' : 'bg-pastel-surfaceMuted text-pastel-textMuted'}`}
         >
           Semana Actual (Sem {obtenerSemanaActual()})
         </button>
         <button 
           onClick={() => setSemana(obtenerSemanaActual() - 1)}
-          className={\`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap \${semana === obtenerSemanaActual() - 1 ? 'bg-pastel-primary text-white' : 'bg-pastel-surfaceMuted text-pastel-textMuted'}\`}
+          className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap ${semana === obtenerSemanaActual() - 1 ? 'bg-pastel-primary text-white' : 'bg-pastel-surfaceMuted text-pastel-textMuted'}`}
         >
           Semana Anterior (Sem {obtenerSemanaActual() - 1})
         </button>

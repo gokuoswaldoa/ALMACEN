@@ -96,7 +96,7 @@ app.get('/api/exportar-semana/:semana', async (req, res) => {
         }
 
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        res.setHeader('Content-Disposition', \`attachment; filename=Carta_Porte_Semana_\${semana}.xlsx\`);
+        res.setHeader('Content-Disposition', `attachment; filename=Carta_Porte_Semana_${semana}.xlsx`);
         
         await workbook.xlsx.write(res);
         res.end();
@@ -128,5 +128,5 @@ app.get('/api/entradas/semana/:semana', (req, res) => {
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
-    console.log(\`Servidor backend corriendo en http://localhost:\${PORT}\`);
+    console.log(`Servidor backend corriendo en http://localhost:${PORT}`);
 });

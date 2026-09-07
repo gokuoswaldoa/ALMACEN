@@ -33,7 +33,7 @@ export async function sincronizarEntradas() {
         if (response.ok) {
             // Si el servidor confirma, limpiamos IndexedDB
             await db.entradasPendientes.clear();
-            console.log(\`\${pendientes.length} entradas sincronizadas con el servidor.\`);
+            console.log(`${pendientes.length} entradas sincronizadas con el servidor.`);
             return pendientes.length;
         } else {
             console.error('El servidor rechazó la sincronización');
