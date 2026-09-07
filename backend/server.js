@@ -27,14 +27,15 @@ app.post('/api/entradas', (req, res) => {
         db.run("BEGIN TRANSACTION");
         const stmt = db.prepare(`
             INSERT INTO registro_entradas 
-            (id_entrada, id_insumo, cantidad, unidad_medida, proveedor, lote, fecha_caducidad, fecha_registro, semana_anio) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (id_entrada, id_insumo, producto, cantidad, unidad_medida, proveedor, lote, fecha_caducidad, fecha_registro, semana_anio) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `);
 
         for (const e of entradas) {
             stmt.run(
                 e.id_entrada, 
                 e.id_insumo, 
+                e.producto || null,
                 e.cantidad, 
                 e.unidad_medida,
                 e.proveedor,
@@ -65,7 +66,7 @@ app.get('/api/exportar-semana/:semana', async (req, res) => {
             const query = `
                 SELECT r.*, c.nombre, c.categoria, c.unidad_medida AS unidad_default, c.proveedor_default 
                 FROM registro_entradas r
-                JOIN catalogo_insumos c ON r.id_insumo = c.id_insumo
+                LEFT JOIN catalogo_insumos c ON r.id_insumo = c.id_insumo
                 WHERE r.semana_anio = ?
                 ORDER BY r.fecha_registro ASC
             `;
@@ -85,8 +86,8 @@ app.get('/api/exportar-semana/:semana', async (req, res) => {
         for (const row of rows) {
             worksheet.addRow([
                 row.cantidad,
-                row.unidad_medida || row.unidad_default,
-                row.nombre,
+                row.unidad_medida || row.unidad_default || 'N/A',
+                row.producto || row.nombre || 'Desconocido',
                 row.lote || 'N/A',
                 row.fecha_caducidad || 'N/A',
                 row.proveedor || row.proveedor_default || 'N/A'
@@ -111,7 +112,7 @@ app.get('/api/entradas/semana/:semana', (req, res) => {
     const query = `
         SELECT r.*, c.nombre, c.proveedor_default 
         FROM registro_entradas r
-        JOIN catalogo_insumos c ON r.id_insumo = c.id_insumo
+        LEFT JOIN catalogo_insumos c ON r.id_insumo = c.id_insumo
         WHERE r.semana_anio = ?
         ORDER BY r.fecha_registro DESC
     `;

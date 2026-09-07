@@ -6,6 +6,9 @@ import { guardarEntradaLocal, sincronizarEntradas } from '../db/offlineStore';
 export default function Capturar() {
   const [cantidad, setCantidad] = useState(0);
   const [insumos, setInsumos] = useState([]);
+  
+  // Nuevo estado para la búsqueda libre
+  const [productoTexto, setProductoTexto] = useState('');
   const [insumoSeleccionado, setInsumoSeleccionado] = useState(null);
   
   const [unidadMedida, setUnidadMedida] = useState('');
@@ -28,33 +31,46 @@ export default function Capturar() {
       });
   }, []);
 
-  const handleSelectInsumo = (insumo) => {
-    setInsumoSeleccionado(insumo);
-    
-    // Autocompletar Detalles de Operación
-    setUnidadMedida(insumo.unidad_medida || '');
-    setProveedor(insumo.proveedor_default || '');
+  const handleProductoChange = (e) => {
+    const texto = e.target.value;
+    setProductoTexto(texto);
 
-    // Aplicar regla de negocio de Trazabilidad
-    const datos = generarDatosLote(insumo.categoria);
-    setLote(datos.lote);
-    setCaducidad(datos.caducidad);
+    // Buscar si el texto ingresado coincide exactamente con un insumo del catálogo
+    const match = insumos.find(i => i.nombre.toLowerCase() === texto.toLowerCase());
+    
+    if (match) {
+      setInsumoSeleccionado(match);
+      setUnidadMedida(match.unidad_medida || '');
+      setProveedor(match.proveedor_default || '');
+
+      const datos = generarDatosLote(match.categoria);
+      setLote(datos.lote);
+      setCaducidad(datos.caducidad);
+    } else {
+      // Si no hay match (ingreso manual), limpiamos la selección pero mantenemos el texto
+      setInsumoSeleccionado(null);
+      
+      // Mantenemos lo que ya hayan escrito en UM/Proveedor, no lo borramos de golpe 
+      // a menos que sea deseable, pero mejor dejamos que lo llenen manualmente.
+    }
   };
 
   const guardarEntrada = async () => {
-    if (!insumoSeleccionado || cantidad <= 0 || !lote || !caducidad || !unidadMedida || !proveedor) {
-      alert("Por favor completa todos los campos correctamente.");
+    if (!productoTexto || cantidad <= 0) {
+      alert("Por favor ingresa un producto y una cantidad válida.");
       return;
     }
 
     const nuevaEntrada = {
       id_entrada: crypto.randomUUID(),
-      id_insumo: insumoSeleccionado.id_insumo,
+      // Si fue del catálogo, pasamos el ID. Si es manual, pasamos un identificador genérico
+      id_insumo: insumoSeleccionado ? insumoSeleccionado.id_insumo : 'MANUAL_' + Date.now(),
+      producto: productoTexto, // Siempre pasamos el texto (sirve de respaldo y para nuevos)
       cantidad: cantidad,
-      unidad_medida: unidadMedida,
-      proveedor: proveedor,
-      lote: lote,
-      fecha_caducidad: caducidad,
+      unidad_medida: unidadMedida || 'No especificada',
+      proveedor: proveedor || 'No especificado',
+      lote: lote || '',
+      fecha_caducidad: caducidad || '',
       fecha_registro: new Date().toISOString(),
       semana_anio: obtenerSemanaActual()
     };
@@ -65,6 +81,7 @@ export default function Capturar() {
     sincronizarEntradas();
 
     setCantidad(0);
+    setProductoTexto('');
     setInsumoSeleccionado(null);
     setUnidadMedida('');
     setProveedor('');
@@ -103,24 +120,27 @@ export default function Capturar() {
         </div>
       </div>
 
-      {/* Selector de Producto */}
+      {/* Input de Producto con Autocompletado Nativo */}
       <div className="space-y-2">
         <label className="text-xs font-bold text-pastel-textMuted uppercase tracking-wider flex justify-between">
-          <span>Producto / SKU</span>
-          <span className="text-pastel-primary">Búsqueda predictiva</span>
+          <span>Materia Prima o Producto</span>
+          <span className="text-[10px] text-pastel-primary">Libre o Selección</span>
         </label>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-pastel-textMuted" size={20} />
-          <select 
+          <input 
+            type="text"
+            list="insumos-list"
+            value={productoTexto}
+            onChange={handleProductoChange}
+            placeholder="Escribe o selecciona un producto..."
             className="w-full bg-pastel-surfaceMuted border-none rounded-xl py-4 pl-10 pr-4 text-pastel-textHeading font-semibold focus:ring-2 focus:ring-pastel-primary appearance-none"
-            onChange={(e) => handleSelectInsumo(insumos.find(i => i.id_insumo === e.target.value))}
-            value={insumoSeleccionado?.id_insumo || ""}
-          >
-            <option value="" disabled>Selecciona o escanea un insumo...</option>
+          />
+          <datalist id="insumos-list">
             {insumos.map(i => (
-              <option key={i.id_insumo} value={i.id_insumo}>{i.nombre}</option>
+              <option key={i.id_insumo} value={i.nombre} />
             ))}
-          </select>
+          </datalist>
         </div>
       </div>
 
@@ -185,7 +205,7 @@ export default function Capturar() {
       <div className="space-y-2 p-4 bg-pastel-secondaryContainer/20 border border-pastel-secondaryContainer/40 rounded-xl">
         <label className="text-xs font-bold text-pastel-secondary uppercase tracking-wider flex justify-between">
           <span>Trazabilidad & Lote</span>
-          <span className="text-[10px]">Autocompletado inteligente</span>
+          <span className="text-[10px]">Manual o Autocompletado</span>
         </label>
         
         <div className="flex gap-4 mt-2">

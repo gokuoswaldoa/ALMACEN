@@ -110,7 +110,7 @@ export default function Bitacora() {
             </div>
             
             <h5 className="font-bold text-pastel-textHeading text-lg leading-tight mb-2">
-              {entrada.nombre}
+              {entrada.producto || entrada.nombre}
             </h5>
             
             <div className="flex flex-wrap gap-2 mb-3">
