@@ -3,44 +3,55 @@ import Dexie from 'dexie';
 export const db = new Dexie('AlmacenDelgadoDB');
 
 // Definimos el esquema de la base de datos local
-db.version(1).stores({
-    entradasPendientes: 'id_entrada, id_insumo, cantidad, lote, fecha_caducidad, fecha_registro, semana_anio'
+db.version(2).stores({
+    entradasPendientes: 'id_entrada, id_insumo, producto, cantidad, unidad_medida, proveedor, lote, fecha_caducidad, fecha_registro, semana_anio',
+    catalogoInsumos: 'id_insumo, nombre, categoria, unidad_medida, proveedor_default'
 });
 
-// Función para guardar localmente
+// Semilla inicial para el catálogo si está vacío
+db.on('populate', async () => {
+    await db.catalogoInsumos.bulkAdd([
+        { id_insumo: '1', nombre: 'Resina Epóxica Industrial 5L', categoria: 'MATERIA_PRIMA', unidad_medida: 'Piezas / Pzas', proveedor_default: 'Distribuidora Logística Norte S.A.' },
+        { id_insumo: '2', nombre: 'Saborizante Fresa', categoria: 'SABOR_COLOR', unidad_medida: 'Litros', proveedor_default: 'SaborTech Inc.' },
+        { id_insumo: '3', nombre: 'Cintas de Sellado Reforzadas', categoria: 'MATERIA_PRIMA', unidad_medida: 'Rollos', proveedor_default: 'Empaques & Cintas' }
+    ]);
+});
+
+// Guardar localmente
 export async function guardarEntradaLocal(entrada) {
     try {
         await db.entradasPendientes.add(entrada);
-        console.log('Entrada guardada localmente (offline)');
+        
+        // Si el producto no está en el catálogo, agregarlo para futuros autocompletados
+        const existe = await db.catalogoInsumos.get({ nombre: entrada.producto });
+        if (!existe) {
+            await db.catalogoInsumos.add({
+                id_insumo: 'manual_' + Date.now(),
+                nombre: entrada.producto,
+                categoria: 'MATERIA_PRIMA',
+                unidad_medida: entrada.unidad_medida,
+                proveedor_default: entrada.proveedor
+            });
+        }
     } catch (error) {
         console.error('Error al guardar localmente:', error);
+        throw error;
     }
 }
 
-// Función para sincronizar con el backend
+export async function obtenerInsumos() {
+    return await db.catalogoInsumos.toArray();
+}
+
+export async function obtenerEntradasPorSemana(semana) {
+    return await db.entradasPendientes.where('semana_anio').equals(semana).reverse().sortBy('fecha_registro');
+}
+
+export async function eliminarEntrada(id_entrada) {
+    await db.entradasPendientes.delete(id_entrada);
+}
+
+// Dummy para evitar errores si otras partes la llamaban
 export async function sincronizarEntradas() {
-    const pendientes = await db.entradasPendientes.toArray();
-    
-    if (pendientes.length === 0) return 0; // No hay nada que sincronizar
-
-    try {
-        const response = await fetch('http://localhost:3001/api/entradas', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(pendientes)
-        });
-
-        if (response.ok) {
-            // Si el servidor confirma, limpiamos IndexedDB
-            await db.entradasPendientes.clear();
-            console.log(`${pendientes.length} entradas sincronizadas con el servidor.`);
-            return pendientes.length;
-        } else {
-            console.error('El servidor rechazó la sincronización');
-            return 0;
-        }
-    } catch (error) {
-        console.warn('Servidor inaccesible. Sincronización pospuesta.', error);
-        return 0;
-    }
+    return 0;
 }

@@ -1,45 +1,78 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Download, Edit2, Trash2, Box, Droplets } from 'lucide-react';
+import { Calendar, Download, Edit2, Trash2, Box } from 'lucide-react';
 import { obtenerSemanaActual } from '../utils/businessLogic';
+import { obtenerEntradasPorSemana, eliminarEntrada } from '../db/offlineStore';
+import ExcelJS from 'exceljs';
+import { saveAs } from 'file-saver';
 
 export default function Bitacora() {
   const [semana, setSemana] = useState(obtenerSemanaActual());
   const [entradas, setEntradas] = useState([]);
   const [descargando, setDescargando] = useState(false);
 
+  const cargarEntradas = async () => {
+    const data = await obtenerEntradasPorSemana(semana);
+    setEntradas(data || []);
+  };
+
   useEffect(() => {
-    // Fetch desde el backend local
-    fetch(`http://localhost:3001/api/entradas/semana/${semana}`)
-      .then(res => res.json())
-      .then(data => setEntradas(data.data || []))
-      .catch(err => console.error("Error al cargar historial", err));
+    cargarEntradas();
   }, [semana]);
 
   const descargarExcel = async () => {
+    if (entradas.length === 0) {
+      alert("No hay movimientos registrados para descargar en esta semana.");
+      return;
+    }
+
     setDescargando(true);
     try {
-      const response = await fetch(`http://localhost:3001/api/exportar-semana/${semana}`);
-      if (!response.ok) throw new Error("Error en descarga");
+      // Cargamos la plantilla estática localmente desde public/
+      const response = await fetch('/CARTA_PORTE_2026.xlsx');
+      if (!response.ok) throw new Error("No se pudo cargar la plantilla base de Excel.");
       
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `Carta_Porte_Semana_${semana}.xlsx`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
+      const arrayBuffer = await response.arrayBuffer();
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(arrayBuffer);
+      const worksheet = workbook.worksheets[0]; // Usar la primera hoja
+      
+      // La plantilla podría tener encabezados, si necesitas escribirlos a partir de cierta fila,
+      // ajusta el índice. ExcelJS "addRow" lo pondrá al final de los datos existentes.
+      for (const row of entradas) {
+          worksheet.addRow([
+              row.cantidad,
+              row.unidad_medida || 'N/A',
+              row.producto || 'N/A',
+              row.lote || 'N/A',
+              row.fecha_caducidad || 'N/A',
+              row.proveedor || 'N/A'
+          ]);
+      }
+
+      // Escribir y descargar
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      saveAs(blob, `Carta_Porte_Semana_${semana}.xlsx`);
+
     } catch (error) {
-      alert("Error al descargar el Excel. Asegúrate que el servidor esté corriendo.");
+      console.error(error);
+      alert("Error al generar el Excel. Asegúrate de tener la plantilla en la carpeta correcta.");
     } finally {
       setDescargando(false);
+    }
+  };
+
+  const handleEliminar = async (id) => {
+    if (window.confirm('¿Estás seguro de que quieres eliminar este registro?')) {
+      await eliminarEntrada(id);
+      cargarEntradas();
     }
   };
 
   const totalUnidades = entradas.reduce((acc, curr) => acc + curr.cantidad, 0);
 
   return (
-    <div className="p-4 space-y-6">
+    <div className="p-4 space-y-6 pb-24">
       
       {/* Header */}
       <div className="flex justify-between items-center">
@@ -86,7 +119,7 @@ export default function Bitacora() {
           className="w-full h-[48px] bg-pastel-primaryContainer text-pastel-onPrimaryContainer rounded-xl font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform"
         >
           <Download size={20} />
-          {descargando ? 'Generando...' : 'Descargar Excel Semanal'}
+          {descargando ? 'Generando Excel...' : 'Descargar Excel Semanal'}
         </button>
       </div>
 
@@ -102,7 +135,7 @@ export default function Bitacora() {
             
             <div className="flex justify-between items-start mb-2">
               <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-pastel-secondary">
-                <Box size={12} /> QUÍMICOS / MP
+                <Box size={12} /> {entrada.unidad_medida || 'U.M'}
               </div>
               <div className="bg-pastel-primaryContainer text-pastel-onPrimaryContainer px-2 py-1 rounded-full text-xs font-bold">
                 {entrada.cantidad} u.
@@ -110,15 +143,18 @@ export default function Bitacora() {
             </div>
             
             <h5 className="font-bold text-pastel-textHeading text-lg leading-tight mb-2">
-              {entrada.producto || entrada.nombre}
+              {entrada.producto || entrada.nombre || 'Producto Desconocido'}
             </h5>
             
             <div className="flex flex-wrap gap-2 mb-3">
-              <span className="bg-pastel-surfaceMuted text-pastel-textBody text-xs px-2 py-1 rounded-md font-semibold">
+              <span className="bg-pastel-surfaceMuted text-pastel-textBody text-[10px] px-2 py-1 rounded-md font-semibold">
                 Lote: {entrada.lote || 'N/A'}
               </span>
-              <span className="bg-pastel-peachBg text-pastel-peachText text-xs px-2 py-1 rounded-md font-semibold">
+              <span className="bg-pastel-peachBg text-pastel-peachText text-[10px] px-2 py-1 rounded-md font-semibold">
                 Cad: {entrada.fecha_caducidad || 'N/A'}
+              </span>
+              <span className="bg-pastel-secondaryContainer text-pastel-onSecondaryContainer text-[10px] px-2 py-1 rounded-md font-semibold">
+                Prov: {entrada.proveedor || 'N/A'}
               </span>
             </div>
             
@@ -127,10 +163,7 @@ export default function Bitacora() {
                 {new Date(entrada.fecha_registro).toLocaleString()}
               </p>
               <div className="flex gap-2">
-                <button className="p-2 bg-pastel-surfaceMuted rounded-lg text-pastel-textMuted hover:text-pastel-primary">
-                  <Edit2 size={16} />
-                </button>
-                <button className="p-2 bg-pastel-surfaceMuted rounded-lg text-pastel-textMuted hover:text-red-500">
+                <button onClick={() => handleEliminar(entrada.id_entrada)} className="p-2 bg-pastel-surfaceMuted rounded-lg text-pastel-textMuted hover:text-red-500">
                   <Trash2 size={16} />
                 </button>
               </div>

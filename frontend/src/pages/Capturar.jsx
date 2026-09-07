@@ -17,18 +17,15 @@ export default function Capturar() {
   const [caducidad, setCaducidad] = useState('');
 
   useEffect(() => {
-    sincronizarEntradas();
-
-    fetch('http://localhost:3001/api/insumos')
-      .then(res => res.json())
-      .then(data => setInsumos(data.data || []))
-      .catch(err => {
-        console.warn("Backend no disponible, usando datos offline");
-        setInsumos([
-          { id_insumo: '1', nombre: 'Resina Epóxica Industrial 5L', categoria: 'MATERIA_PRIMA', unidad_medida: 'Pzas', proveedor_default: 'Logística S.A.' },
-          { id_insumo: '2', nombre: 'Saborizante Fresa', categoria: 'SABOR_COLOR', unidad_medida: 'Litros', proveedor_default: 'SaborTech' }
-        ]);
-      });
+    async function load() {
+      try {
+        const data = await import('../db/offlineStore').then(m => m.obtenerInsumos());
+        setInsumos(data);
+      } catch(err) {
+        console.error(err);
+      }
+    }
+    load();
   }, []);
 
   const handleProductoChange = (e) => {
