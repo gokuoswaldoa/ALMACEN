@@ -37,19 +37,23 @@ export default function Bitacora() {
       const arrayBuffer = await response.arrayBuffer();
       const workbook = new ExcelJS.Workbook();
       await workbook.xlsx.load(arrayBuffer);
-      const worksheet = workbook.worksheets[0]; 
+      const worksheet = workbook.getWorksheet('CARTA PORTE ENTRADA MP'); 
       
+      if (!worksheet) {
+        throw new Error("No se encontró la hoja 'CARTA PORTE ENTRADA MP' en la plantilla.");
+      }
+
       let startRow = 24;
 
-      // Limpiar datos de ejemplo (filas 24 a 50)
-      for(let i = startRow; i <= 50; i++) {
+      // Limpiar datos previos si los hubiera (filas 24 a 100)
+      for(let i = startRow; i <= 100; i++) {
         const r = worksheet.getRow(i);
-        r.getCell(2).value = null;
-        r.getCell(7).value = null;
-        r.getCell(17).value = null;
-        r.getCell(38).value = null;
-        r.getCell(41).value = null;
-        r.getCell(44).value = null;
+        r.getCell(2).value = null; // Cantidad
+        r.getCell(7).value = null; // Unidad
+        r.getCell(12).value = null; // Producto
+        r.getCell(38).value = null; // Lote
+        r.getCell(43).value = null; // Cad
+        r.getCell(46).value = null; // Proveedor
       }
 
       // Escribir los datos reales desde Bitácora
@@ -57,10 +61,10 @@ export default function Bitacora() {
           const r = worksheet.getRow(startRow);
           r.getCell(2).value = data.cantidad;
           r.getCell(7).value = data.unidad_medida || 'N/A';
-          r.getCell(17).value = data.producto || data.nombre || 'N/A';
+          r.getCell(12).value = data.producto || data.nombre || 'N/A';
           r.getCell(38).value = data.lote || 'N/A';
-          r.getCell(41).value = data.fecha_caducidad || 'N/A';
-          r.getCell(44).value = data.proveedor || 'N/A';
+          r.getCell(43).value = data.fecha_caducidad || 'N/A';
+          r.getCell(46).value = data.proveedor || 'N/A';
           startRow++;
       }
 
