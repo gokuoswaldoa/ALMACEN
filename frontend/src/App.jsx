@@ -1,19 +1,12 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import Layout from './components/Layout';
-import Capturar from './pages/Capturar';
-import Bitacora from './pages/Bitacora';
 
 function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Layout />}>
-          <Route index element={<Capturar />} />
-          <Route path="bitacora" element={<Bitacora />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
+    <div className="fixed inset-0 bg-white flex items-center justify-center z-50 p-6 text-center">
+      <h1 className="text-2xl md:text-4xl font-black text-black uppercase tracking-widest leading-relaxed">
+        Aplicación suspendida por Oswaldo por falta de interés
+      </h1>
+    </div>
   );
 }
 
